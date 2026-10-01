@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block content %}
+<a class="back" href="/">← Overview</a>
+<header>
+  <div><div class="eyebrow">ALERT #{{ alert.id }} / EVIDENCE</div><h1>{{ alert.rule }}</h1><p>{{ alert.reason }}</p></div>
+  <span class="score">{{ alert.score }}<small>/ 100 severity</small></span>
+</header>
+<div class="notice">{{ rows|length }} supporting event(s) · {{ alert.timestamp|utc }} · {% if rows and rows[0].origin == 'demo' %}Synthetic demonstration{% else %}Imported Linux Audit evidence{% endif %}</div>
+<h2>Supporting activity</h2>
+{% for device in device_evidence %}<p><a href="{{ url_for('inventory.detail', identity=device.id) }}">Inspect device enrollment: {{ device.label }}</a></p>{% endfor %}
+{% include 'events.html' %}
+<section class="policy">
+  <h2>Review status: {{ 'Acknowledged' if history and history[0].action == 'acknowledge' else 'Open' }}</h2>
+  <p>Acknowledgement records human review. It does not block activity or establish that the alert is harmless.</p>
+  {% if administrator %}
+  <form method="post" action="{{ url_for('review', alert_id=alert.id) }}" class="review-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="expected_id" value="{{ history[0].id if history else 0 }}">
+    <input type="hidden" name="action" value="{{ 'reopen' if history and history[0].action == 'acknowledge' else 'acknowledge' }}">
+    <label>Investigation note<textarea name="note" required maxlength="1000" rows="3"></textarea></label>
+    <button>{{ 'Reopen alert' if history and history[0].action == 'acknowledge' else 'Acknowledge alert' }}</button>
+  </form>
+  {% else %}<p>Read-only preview. Create an administrator using the setup guide to enable reviews.</p>{% endif %}
+  {% for item in history %}<p><b>{{ item.username }} · {{ item.action }} · {{ item.timestamp|utc }}</b><br>{{ item.note }}</p>{% else %}<p>No reviews recorded.</p>{% endfor %}
+</section>
+<section class="policy">
+  <h2>Recorded detection settings</h2>
+  {% if policy %}
+    <p>Rule version {{ policy.version }}. These settings were saved when the alert was created.</p>
+    {% for name, value in parameters.items() %}<p><b>{{ name|replace('_', ' ')|capitalize }}:</b> {{ value }}</p>{% endfor %}
+  {% else %}<p>This older alert has no saved policy snapshot. Its original reason and evidence remain available; current settings should not be assumed to explain it.</p>{% endif %}
+</section>
+<section class="policy">
+  <h2>Traceability</h2>
+  <p>Each event keeps a source identifier for duplicate prevention. It does not provide cryptographic proof that the original log was untampered.</p>
+  {% for row in rows %}
+    <p class="source-id">Event #{{ row.id }}: <code>{{ row.source_id }}</code></p>
+    {% if row.audit_serial %}<p>Audit serial {{ row.audit_serial }} · syscall {{ row.syscall or 'not recorded' }} · architecture {{ row.architecture or 'not recorded' }} · inode {{ row.inode or 'not recorded' }} · device {{ row.device or 'not recorded' }}</p>{% endif %}
+  {% endfor %}
+</section>
+{% endblock %}

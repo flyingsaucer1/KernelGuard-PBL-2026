@@ -1,0 +1,18 @@
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Time (UTC)</th><th>Account</th><th>Activity / resource</th><th>Outcome</th><th>Source</th></tr></thead>
+    <tbody>
+    {% for row in rows %}
+      <tr>
+        <td class="time">{{ row.timestamp|utc }}</td>
+        <td>{{ row.account }}<small>{{ row.host }}</small></td>
+        <td><b>{{ row.kind|replace('_', ' ') }}</b><small>{{ row.resource or '—' }}</small>
+          {% if row.executable %}<small>{{ row.executable }} · PID {{ row.pid or '—' }}</small>{% endif %}
+          {% if row.audit_serial %}<small>Login UID {{ row.login_uid if row.login_uid is not none else 'unknown' }} · real UID {{ row.real_uid if row.real_uid is not none else 'unknown' }} · effective UID {{ row.observed_effective_uid if row.observed_effective_uid is not none else 'unknown' }}</small>{% endif %}
+        </td>
+        <td><span class="outcome">{{ row.outcome }}</span></td><td>{{ row.origin }}</td>
+      </tr>
+    {% else %}<tr><td colspan="5" class="empty">No matching events. Import the demo or start the Linux collector.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>

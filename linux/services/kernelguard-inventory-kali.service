@@ -1,0 +1,22 @@
+[Unit]
+Description=KernelGuard live inventory collector
+Requires=mariadb.service
+After=mariadb.service systemd-udevd.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/kali/Desktop/KernalGuard
+Environment="KERNELGUARD_DB_URL=mysql+pymysql://kernelguard_collector@localhost/kernelguard_live?unix_socket=/run/mysqld/mysqld.sock"
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/home/kali/Desktop/KernalGuard/.venv-linux/bin/python -m kernelguard --config /home/kali/Desktop/KernalGuard/config.example.json inventory --interval 10
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/kali/Desktop/KernalGuard/data
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

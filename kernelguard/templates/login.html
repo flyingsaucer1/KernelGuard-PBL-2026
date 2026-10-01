@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+<header><div><div class="eyebrow">ADMINISTRATOR ACCESS</div><h1>Sign in to KernelGuard</h1><p>Review activity and record your investigation decisions.</p></div></header>
+{% if error %}<div class="notice" role="alert">{{ error }}</div>{% endif %}
+<form method="post" class="review-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label>Username<input name="username" autocomplete="username" maxlength="64" required></label>
+  <label>Password<input name="password" type="password" autocomplete="current-password" maxlength="256" required></label>
+  <button>Sign in</button>
+</form>
+{% endblock %}

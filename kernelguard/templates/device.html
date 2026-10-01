@@ -1,0 +1,12 @@
+{% extends 'base.html' %}{% block content %}
+<a class="back" href="{{ url_for('inventory.index') }}">← Device inventory</a>
+<header><div><div class="eyebrow">USB ENROLLMENT</div><h1>{{ device.label }}</h1><p>{{ device.host }} · {{ device.origin }} · {{ device.vendor }}:{{ device.product }}</p></div></header>
+<div class="notice">{{ 'Approved' if history and history[0].approved else 'Unapproved' }} · {{ device.identity_basis }} identity · {{ device.serial or device.port }}</div>
+<p>Device fingerprint: <code>{{ device.id }}</code></p>
+<p>Enrollment records an administrator decision. USB identifiers can be duplicated or spoofed; approval does not authenticate hardware or block connections. Decisions apply to future first-seen/reappearance observations.</p>
+{% if administrator %}<form method="post" action="{{ url_for('inventory.enrollment', identity=device.id) }}" class="review-form">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="expected_id" value="{{ history[0].id if history else 0 }}"><input type="hidden" name="decision" value="{{ 'revoke' if history and history[0].approved else 'approve' }}">
+<label>Enrollment note<textarea name="note" maxlength="1000" rows="3" required></textarea></label><button>{{ 'Revoke approval' if history and history[0].approved else 'Approve device' }}</button></form>{% else %}<p>Read-only preview. Create an administrator to manage enrollment.</p>{% endif %}
+<section class="policy"><h2>Enrollment history</h2>{% for item in history %}<p><b>{{ item.username }} · {{ 'approved' if item.approved else 'revoked' }} · {{ item.timestamp|utc }}</b><br>{{ item.note }}</p>{% else %}<p>No enrollment decisions recorded.</p>{% endfor %}</section>
+<h2>Recent presence changes</h2><div class="table-wrap"><table><tr><th>Observation (UTC)</th><th>State</th><th>Source</th></tr>{% for item in observations %}<tr><td>{{ item.timestamp|utc }}</td><td>{{ 'First seen / reappeared' if item.kind == 'usb_seen' else 'Absent from complete poll' }}</td><td>{{ item.origin }}</td></tr>{% endfor %}</table></div>
+{% endblock %}

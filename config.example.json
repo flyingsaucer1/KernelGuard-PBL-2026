@@ -1,0 +1,12 @@
+{
+  "host_id": "kernelguard-lab",
+  "protected_path": "/srv/kernelguard/protected",
+  "timezone": "Asia/Kolkata",
+  "allowed_start_hour": 9,
+  "allowed_end_hour": 18,
+  "login_threshold": 5,
+  "login_window_seconds": 300,
+  "bulk_file_threshold": 10,
+  "bulk_window_seconds": 60,
+  "privileged_executables": ["/usr/bin/passwd", "/usr/sbin/useradd", "/usr/sbin/usermod"]
+}
