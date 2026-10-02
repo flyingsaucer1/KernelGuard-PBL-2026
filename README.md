@@ -88,6 +88,7 @@ data/                     ignored local databases; never commit credentials or e
 - [Which files are needed](docs/FILE_GUIDE.md)
 - [Architecture and module responsibilities](docs/ARCHITECTURE.md)
 - [Linux setup](docs/LINUX_SETUP.md)
+- [MySQL 8.4 Docker deployment on this Kali host](docs/MYSQL84_DOCKER.md)
 - [Acceptance procedure and outstanding real-hardware checks](docs/ACCEPTANCE.md)
 - [Evaluation results and limits](docs/EVALUATION.md)
 - [Arshpreet's assigned work and contribution record](docs/ARSHPREET_WORK.md)
@@ -108,10 +109,12 @@ inventory collector and administrator login were enabled, and controlled file,
 privileged-command, bulk-read, failed-login and review checks passed. The audit,
 inventory and localhost dashboard services are enabled for boot. See the
 [live audit check](docs/LIVE_AUDIT_CHECK.md).
-The live deployment uses MariaDB through the MySQL driver; the default SQLite URL
-below is for a standalone demo. Physical USB removal/reconnection and Oracle MySQL
-acceptance remain unverified because this host has no spare USB device or Oracle
-MySQL instance.
+The original live deployment uses MariaDB through the MySQL driver. A parallel
+Oracle MySQL 8.4.11 Docker deployment now runs on this Kali host, with a separate
+dashboard at <http://127.0.0.1:5001> and live audit/inventory collectors. Its
+admin login and MySQL integration test passed on 2026-10-02. The default SQLite
+URL below is for a standalone demo. Physical USB removal/reconnection remains
+unverified because this host has no spare USB device.
 Snapshots and unit mocks do not establish those results. KernelGuard detects policy
 matches; it does not block attacks, prove data copying or establish malicious intent.
 
