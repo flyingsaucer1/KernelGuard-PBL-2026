@@ -30,6 +30,7 @@ def count(conn, table):
     return conn.execute(select(func.count()).select_from(table)).scalar()
 
 
+# START Ankit: check baseline evidence and the original detection rules.
 def test_fixture_end_to_end_and_replay(engine):
     records = list(parse_audit(Path("fixtures/demo.audit").read_text(), "lab", "demo"))
     assert len(records) == 9
@@ -95,8 +96,10 @@ def test_overnight_hours(engine):
             r["outcome"] = "success"
             ingest(conn, r, cfg)
         assert count(conn, alerts) == 1
+# END Ankit: login and protected-file policy checks.
 
 
+# START Arshpreet Singh: check Linux Audit parsing and identity handling.
 def test_multiline_relative_hex_and_identity():
     raw = '''type=SYSCALL msg=audit(1000.123:1): success=yes auid=1001 uid=0 euid=0 ses=3 pid=9 exe="/usr/bin/cat" key="kernelguard_protected"
 type=CWD msg=audit(1000.123:1): cwd="/srv/kernelguard/protected"
@@ -123,8 +126,10 @@ malformed line
     rows = list(parse_audit(raw, "lab"))
     assert len(rows) == 1
     assert rows[0]["account"] == "testuser"
+# END Arshpreet Singh: audit-record parsing checks.
 
 
+# START Mohd Ahmed Khan: verify transaction rollback preserves database state.
 def test_transaction_rollback(engine):
     with pytest.raises(RuntimeError):
         with engine.begin() as conn:
@@ -133,8 +138,10 @@ def test_transaction_rollback(engine):
             raise RuntimeError("simulated database failure")
     with engine.connect() as conn:
         assert count(conn, events) == count(conn, alerts) == 0
+# END Mohd Ahmed Khan: persistence rollback check.
 
 
+# START Mohd Shoaib: check dashboard evidence, filters, and escaping.
 def test_dashboard_evidence_filters_and_escaping(engine):
     with engine.begin() as conn:
         for i in range(5):
@@ -150,8 +157,10 @@ def test_dashboard_evidence_filters_and_escaping(engine):
     assert b"No matching events" in client.get("/?kind=file_access").data
     assert client.get("/alerts/1").status_code == 200
     assert client.get("/alerts/999").status_code == 404
+# END Mohd Shoaib: dashboard response checks.
 
 
+# START Arshpreet Singh: check collector checkpoints and audit failures.
 def test_collector_checkpoint_commit_and_resume(engine, monkeypatch):
     calls = []
     def run(command, **kwargs):
@@ -175,3 +184,4 @@ def test_collector_error_does_not_advance(engine, monkeypatch):
         collect_once(engine, settings())
     with engine.connect() as conn:
         assert checkpoint_get(conn, "collector_health") is None
+# END Arshpreet Singh: collector recovery checks.

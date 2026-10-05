@@ -33,6 +33,7 @@ def seed(conn):
         ingest(conn, row, settings())
 
 
+# START Ankit: check privileged-command and bulk-file detection rules.
 def test_activity_end_to_end_replay_and_policy_links(engine):
     with engine.begin() as conn:
         seed(conn)
@@ -95,8 +96,10 @@ def test_bulk_requires_distinct_paths_and_same_scope(engine, change):
         for row in rows:
             ingest(conn, row, cfg)
         assert count(conn, alerts) == 0
+# END Ankit: activity-rule and evidence checks.
 
 
+# START Mohd Shoaib: check authentication, CSRF, and review decisions.
 def test_preview_cannot_write(engine):
     with engine.begin() as conn:
         seed(conn)
@@ -191,8 +194,10 @@ def test_review_transaction_rollback_and_invalid_transitions(engine):
         raise RuntimeError("simulated failure")
     with engine.connect() as conn:
         assert count(conn, alert_reviews) == 0
+# END Mohd Shoaib: review workflow and access-control checks.
 
 
+# START Mohd Ahmed Khan: check additive schema upgrade and retained evidence.
 def test_additive_upgrade_keeps_existing_events(tmp_path):
     db = database("sqlite:///" + (tmp_path / "upgrade.db").as_posix())
     old_names = {"events", "alerts", "alert_events", "checkpoints", "audit_details",
@@ -211,3 +216,4 @@ def test_additive_upgrade_keeps_existing_events(tmp_path):
         assert count(conn, events) == 20 and count(conn, alerts) == 4
         assert count(conn, administrators) == count(conn, alert_reviews) == 0
     db.dispose()
+# END Mohd Ahmed Khan: database upgrade check.

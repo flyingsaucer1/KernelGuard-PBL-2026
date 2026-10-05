@@ -35,6 +35,7 @@ def count(conn, table):
     return conn.execute(select(func.count()).select_from(table)).scalar()
 
 
+# START Mohd Ahmed Khan: check inventory relationships, history, and rollback.
 def test_inventory_relations_device_alert_and_replay(engine):
     with engine.begin() as conn:
         assert store_snapshot(conn, example(), settings())
@@ -111,8 +112,10 @@ def test_demo_and_live_inventories_and_enrollment_are_separate(engine):
         store_snapshot(conn, example(origin="live"), settings())
         store_snapshot(conn, example(host="another-host"), settings())
         assert count(conn, devices) == 3 and count(conn, alerts) == 3
+# END Mohd Ahmed Khan: inventory persistence and scoped history checks.
 
 
+# START Arshpreet Singh: validate Linux snapshot and hardware identities.
 @pytest.mark.parametrize("invalid", [
     {"origin": "trusted"}, {"boot_id": ""}, {"timestamp": -1},
     {"users": [{"uid": "0", "username": "a"}, {"uid": "0", "username": "b"}]},
@@ -135,8 +138,10 @@ def test_no_serial_identity_is_scoped_to_port():
     device = first.devices[0].model_copy(update={"serial": None})
     moved = device.model_copy(update={"port": "different-port"})
     assert device_id(first, device) != device_id(first, moved)
+# END Arshpreet Singh: snapshot validation and device identity checks.
 
 
+# START Mohd Shoaib: check inventory pages and device enrollment workflow.
 def test_inventory_web_enrollment_csrf_stale_forms_and_escaping(engine):
     snapshot = example()
     snapshot.devices[0].label = "<script>USB</script>"
@@ -159,14 +164,18 @@ def test_inventory_web_enrollment_csrf_stale_forms_and_escaping(engine):
     assert b"Revoke approval" in client.get("/devices/"+did).data
     assert client.get("/devices/not-a-device").status_code == 404
     assert b"Inspect device enrollment" in client.get("/alerts/1").data
+# END Mohd Shoaib: inventory UI and administrator decision checks.
 
 
+# START Arshpreet Singh: reject unsupported live inventory collection platforms.
 def test_windows_live_inventory_fails_explicitly(monkeypatch):
     monkeypatch.setattr("kernelguard.inventory.collector.sys.platform", "win32")
     with pytest.raises(RuntimeError, match="needs Linux"):
         collect_snapshot("lab")
+# END Arshpreet Singh: Linux-only collector check.
 
 
+# START Ankit: keep bulk-file detection within one boot context.
 def test_bulk_rule_separates_boot_contexts(engine):
     cfg = settings()
     cfg["bulk_file_threshold"] = 3
@@ -176,8 +185,10 @@ def test_bulk_rule_separates_boot_contexts(engine):
         for row in rows:
             ingest(conn, row, cfg)
         assert count(conn, alerts) == 0 and count(conn, event_context) == 3
+# END Ankit: bulk-rule boot scope check.
 
 
+# START Arshpreet Singh: check the Linux user, process, and USB collector adapter.
 def test_linux_collector_adapter_with_mocked_operating_system(monkeypatch):
     import sys
     from kernelguard.inventory import collector
@@ -197,3 +208,4 @@ def test_linux_collector_adapter_with_mocked_operating_system(monkeypatch):
     result = collect_snapshot("lab")
     assert result.origin == "live" and result.boot_id == "test-boot"
     assert result.devices[0].serial == "LAB" and result.users[0].uid == "1001"
+# END Arshpreet Singh: operating-system collector adapter check.

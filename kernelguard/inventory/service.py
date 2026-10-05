@@ -8,6 +8,7 @@ from .models import Snapshot
 from .schema import snapshots, users, sessions, processes, devices, device_events, device_decisions
 
 
+# START Mohd Ahmed Khan: store inventory snapshots and device history atomically.
 def key(*parts):
     return digest(json.dumps(parts, separators=(",", ":")))
 
@@ -114,6 +115,7 @@ def store_snapshot(conn, snapshot, cfg):
             eid = conn.execute(select(events.c.id).where(events.c.source_id == record["source_id"])).scalar_one()
             conn.execute(device_events.insert().values(event_id=eid, device_id=did, snapshot_id=identity))
             approval = latest_decision(conn, did)
+            # START Ankit: detect a newly observed USB device without approval.
             if not approval or not approval["approved"]:
                 policy = save_policy(conn, "unknown_usb", dict(severity=65,
                     device_id=did, identity_basis="serial" if device.serial else "port",
@@ -122,6 +124,7 @@ def store_snapshot(conn, snapshot, cfg):
                     f"USB device {device.label} first observed or reappeared on {snapshot.host} "
                     "without enrollment. No responsible user or data transfer is inferred.",
                     "usb:" + record["source_id"], policy)
+            # END Ankit: unapproved USB alert and supporting evidence.
     for did, previous in previous_devices.items():
         if previous["present"] and did not in present_ids:
             conn.execute(devices.update().where(devices.c.id == did).values(present=False))
@@ -137,3 +140,4 @@ def device_record(snapshot, did, snapshot_id, kind, label):
         timestamp=snapshot.timestamp, kind=kind, account="unattributed", uid=None,
         effective_uid=None, session=None, pid=None, executable=None, resource=label,
         outcome="observed", origin=snapshot.origin)
+# END Mohd Ahmed Khan: inventory identities, decisions, and transactional storage.

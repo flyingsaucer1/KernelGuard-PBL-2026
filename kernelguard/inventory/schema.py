@@ -1,6 +1,7 @@
 from sqlalchemy import Table, Column, String, Text, Integer, Boolean, ForeignKey, Index
 from ..core import metadata
 
+# START Mohd Ahmed Khan: relational tables for host inventory and device decisions.
 snapshots = Table("inventory_snapshots", metadata,
     Column("id", String(64), primary_key=True),
     Column("host", String(128), nullable=False),
@@ -52,3 +53,4 @@ device_decisions = Table("device_decisions", metadata,
     Column("approved", Boolean, nullable=False), Column("note", String(1000), nullable=False),
     Column("timestamp", Integer, nullable=False),
     Index("ix_device_decision", "device_id", "id"))
+# END Mohd Ahmed Khan: inventory schema and foreign-key relationships.

@@ -10,12 +10,14 @@ from sqlalchemy import text
 from .core import digest
 
 
+# START Arshpreet Singh: coordinate cooperating collector writers.
 class WriterBusy(RuntimeError):
     """A cooperating writer owns the lock; a periodic collector may retry later."""
 
 
 @contextmanager
 def writer_lock(engine):
+    # START Mohd Ahmed Khan: use a database-scoped MySQL advisory lock.
     if engine.dialect.name == "mysql":
         name = "kg:" + digest(engine.url.database or "")[:60]
         with engine.connect() as conn:
@@ -27,6 +29,7 @@ def writer_lock(engine):
             finally:
                 conn.execute(text("SELECT RELEASE_LOCK(:name)"), {"name": name})
         return
+    # END Mohd Ahmed Khan: MySQL writer-lock integration.
     database_path = engine.url.database
     if not database_path or database_path == ":memory:":
         yield  # Isolated unit-test databases do not share disk storage.
@@ -43,3 +46,4 @@ def writer_lock(engine):
         yield
     finally:
         lock.release()
+# END Arshpreet Singh: writer coordination and SQLite file locking.

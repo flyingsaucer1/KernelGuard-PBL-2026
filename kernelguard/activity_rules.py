@@ -4,6 +4,7 @@ from sqlalchemy import select
 from .core import events, alerts, alert_events, event_context, save_policy, add_alert
 
 
+# START Ankit: detect privileged execution and bulk protected-file activity.
 def protected(path, root):
     candidate, directory = PurePosixPath(path or "/"), PurePosixPath(root)
     return candidate == directory or directory in candidate.parents
@@ -55,3 +56,4 @@ def evaluate(conn, record, eid, cfg, boot_id=None):
             f"{record['account']} accessed {distinct} distinct protected paths within "
             f"{seconds} seconds on {record['host']}. This does not prove copying or exfiltration.",
             "bulk:" + ":".join(map(str, evidence)), policy)
+# END Ankit: activity rules using shared alert and policy persistence.

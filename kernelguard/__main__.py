@@ -13,6 +13,7 @@ from .parser import parse_audit
 from .locking import writer_lock, WriterBusy
 
 
+# START Arshpreet Singh: import audit records and manage live audit checkpoints.
 def import_text(engine, cfg, text, origin):
     records = list(parse_audit(text, cfg["host_id"], origin))
     with writer_lock(engine), engine.begin() as conn:
@@ -53,8 +54,10 @@ def collect_once(engine, cfg):
             checkpoint_set(conn, "collector_health", json.dumps({
                 "last_poll": int(time.time()), "host": cfg["host_id"], "inserted": count}))
         print(f"Collector: inserted {count} events", flush=True)
+# END Arshpreet Singh: audit import and collection helpers.
 
 
+# START Mohd Ahmed Khan: integrate database, demo, collector, admin, and web commands.
 def main():
     parser = argparse.ArgumentParser(description="KernelGuard activity monitor")
     parser.add_argument("--config", help="JSON rule settings")
@@ -112,6 +115,7 @@ def main():
             with writer_lock(engine), engine.begin() as conn:
                 changed = store_snapshot(conn, snapshot, cfg)
             print(f"Synthetic inventory {'stored' if changed else 'already imported'}.")
+    # START Arshpreet Singh: run validated Linux inventory polling or import.
     elif args.command in ("inventory", "import-inventory"):
         from .inventory.collector import collect_snapshot
         from .inventory.models import Snapshot
@@ -139,8 +143,10 @@ def main():
                 time.sleep(args.interval)
         except KeyboardInterrupt:
             print("Inventory stopped.")
+    # END Arshpreet Singh: inventory collector command loop.
     elif args.command == "import-audit":
         import_text(engine, cfg, Path(args.path).read_text(encoding="utf-8"), args.origin)
+    # START Arshpreet Singh: run live Linux Audit polling with writer coordination.
     elif args.command == "collect":
         if sys.platform != "linux":
             parser.error("Live audit collection needs Linux; use demo on Windows")
@@ -160,11 +166,13 @@ def main():
                 time.sleep(args.interval)
         except KeyboardInterrupt:
             print("Collector stopped.")
+    # END Arshpreet Singh: audit collector command loop.
     elif args.command == "serve":
         from .web import create_app
         from waitress import serve
         print(f"KernelGuard: http://127.0.0.1:{args.port}", flush=True)
         serve(create_app(engine, cfg), host="127.0.0.1", port=args.port, threads=4)
+# END Mohd Ahmed Khan: application command integration.
 
 
 if __name__ == "__main__":

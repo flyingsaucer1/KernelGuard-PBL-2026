@@ -14,6 +14,7 @@ from sqlalchemy import (Column, ForeignKey, Index, Integer, MetaData, String,
                         Table, Text, create_engine, event, select)
 from .config import settings
 
+# START Mohd Ahmed Khan: define relational tables and database storage helpers.
 metadata = MetaData()
 events = Table("events", metadata,
     Column("id", Integer, primary_key=True),
@@ -137,10 +138,12 @@ def add_alert(conn, rule, record, evidence, score, reason, key, policy_id):
         reason=reason)).inserted_primary_key[0]
     conn.execute(alert_events.insert(), [dict(alert_id=aid, event_id=eid) for eid in evidence])
     conn.execute(alert_policies.insert().values(alert_id=aid, policy_id=policy_id))
+# END Mohd Ahmed Khan: schema, checkpoints, policies, and alert evidence storage.
 
 
 def ingest(conn, record, cfg):
     """One writer; caller commits events, alerts and cursor in one transaction."""
+    # START Mohd Ahmed Khan: deduplicate and store normalized event evidence.
     record = dict(record)
     audit = record.pop("_audit", None)
     boot_id = record.pop("_boot", None)
@@ -157,6 +160,9 @@ def ingest(conn, record, cfg):
         conn.execute(event_context.insert().values(event_id=eid, boot_id=boot_id))
     if audit:
         conn.execute(audit_details.insert().values(event_id=eid, **audit))
+    # END Mohd Ahmed Khan: event and audit-detail persistence.
+
+    # START Ankit: evaluate login, after-hours, and additional activity rules.
     if record["kind"] == "login_failure":
         # Evaluate windows ending at this event AND later stored events: late arrivals
         # must not hide a threshold crossing. Greedily group disjoint alert episodes.
@@ -198,4 +204,5 @@ def ingest(conn, record, cfg):
                 f"({cfg['timezone']}) on {record['host']}.", "file:" + record["source_id"], policy)
     from .activity_rules import evaluate
     evaluate(conn, record, eid, cfg, boot_id)
+    # END Ankit: detection rules and their alert evidence.
     return True

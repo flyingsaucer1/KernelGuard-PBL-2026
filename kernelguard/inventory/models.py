@@ -2,6 +2,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+# START Arshpreet Singh: validate Linux user, process, and USB snapshot identities.
 class Model(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
@@ -51,3 +52,4 @@ class Snapshot(Model):
         if len(set(identities)) != len(identities):
             raise ValueError("Ambiguous duplicate USB identities; snapshot rejected")
         return self
+# END Arshpreet Singh: validated inventory snapshot contract.

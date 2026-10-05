@@ -92,6 +92,7 @@ data/                     ignored local databases; never commit credentials or e
 - [Acceptance procedure and outstanding real-hardware checks](docs/ACCEPTANCE.md)
 - [Evaluation results and limits](docs/EVALUATION.md)
 - [Arshpreet's assigned work and contribution record](docs/ARSHPREET_WORK.md)
+- [Team contributions and responsibilities](CONTRIBUTORS.md)
 - [Team file ownership and member-wise grouping](docs/contributions/README.md)
 - [AI assistance and attribution](docs/ORIGINALITY_AND_ATTRIBUTION.md)
 

@@ -9,11 +9,13 @@ from .schema import users, sessions, processes, devices, snapshots, device_decis
 from .service import decide_device
 
 
+# START Mohd Shoaib: inventory pages and USB enrollment routes.
 def register_inventory(app, engine):
     blueprint = Blueprint("inventory", __name__)
 
     @blueprint.get("/inventory")
     def index():
+        # START Mohd Ahmed Khan: query related inventory tables for the UI.
         kind = request.args.get("kind", "devices")
         tables = dict(devices=devices, users=users, sessions=sessions, processes=processes)
         if kind not in tables:
@@ -43,6 +45,7 @@ def register_inventory(app, engine):
             total = conn.execute(select(func.count()).select_from(table).where(*filters)).scalar()
             runs = conn.execute(select(snapshots).order_by(snapshots.c.timestamp.desc()).limit(5)).mappings().all()
             runs = [dict(row, warnings=json.loads(row["warnings_json"])) for row in runs]
+        # END Mohd Ahmed Khan: inventory relationship and pagination queries.
         return render_template("inventory.html", kind=kind, rows=rows, total=total, page=page,
             host=host, origin=origin, runs=runs, now=int(time.time()))
 
@@ -78,3 +81,4 @@ def register_inventory(app, engine):
         return redirect(url_for("inventory.detail", identity=identity))
 
     app.register_blueprint(blueprint)
+# END Mohd Shoaib: inventory display and administrator device actions.
