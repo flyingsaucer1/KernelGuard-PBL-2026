@@ -1,0 +1,3 @@
+# x86_64 Linux lab. Directory must exist BEFORE loading the rule.
+# Monitor metadata for access to this directory only.
+-a always,exit -F arch=b64 -F dir=/srv/kernelguard/protected -F perm=rw -F key=kernelguard_protected
