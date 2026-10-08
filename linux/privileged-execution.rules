@@ -1,4 +1,0 @@
-# Additional x86_64 lab rule. Keep the protected-directory rule.
-# Records successful/failed root-effective exec attempts from regular login identities.
-# The parser retains executable/identity metadata, not EXECVE arguments or PROCTITLE.
--a always,exit -F arch=b64 -S execve,execveat -F euid=0 -F auid>=1000 -F auid!=unset -F key=kernelguard_privileged

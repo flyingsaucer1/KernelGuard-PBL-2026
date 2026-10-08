@@ -1,4 +1,4 @@
--- Event counts by account and type (SQLite and MySQL).
+-- Event counts by account and type (MySQL).
 SELECT host, origin, account, kind, COUNT(*) AS event_count
 FROM events GROUP BY host, origin, account, kind ORDER BY event_count DESC;
 
@@ -31,7 +31,7 @@ LEFT JOIN alert_policies ap ON ap.alert_id = a.id
 LEFT JOIN rule_policies p ON p.id = ap.policy_id
 ORDER BY a.id;
 
--- MySQL 8 EXPLAIN example. Inspect the chosen key and estimated rows on your lab data.
+-- MySQL EXPLAIN example. Inspect the chosen key and estimated rows on your lab data.
 -- Small fixture tables may legitimately use a full scan; do not claim an index was used
 -- without examining actual EXPLAIN output.
 EXPLAIN SELECT id, timestamp FROM events

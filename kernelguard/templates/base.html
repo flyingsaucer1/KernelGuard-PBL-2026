@@ -1,5 +1,24 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>KernelGuard · Activity monitor</title><link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head>
-<body><aside><a class="brand" href="/">◈ KernelGuard</a><span class="phase">HOST SECURITY MONITOR</span><nav><a href="/">Overview & activity</a><a href="/#alerts">Security alerts</a><a href="/#policy">Detection policy</a><a href="/inventory">Host inventory</a></nav>{% if administrator %}<form method="post" action="{{ url_for('logout') }}" class="logout-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button>Sign out · {{ administrator.username }}</button></form>{% elif not auth_enabled %}<p class="phase">READ-ONLY PREVIEW</p>{% endif %}<div class="aside-bottom">OS + DBMS PROJECT<br>Observe. Correlate. Explain.</div></aside>
-<main>{% block content %}{% endblock %}<footer>KernelGuard · Metadata only · Rule scores indicate severity, not probability of malicious intent.</footer></main></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KernelGuard · Phase 2</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <aside>
+    <a class="brand" href="/">◈ KernelGuard</a>
+    <span class="phase">PHASE 2 · OS + DBMS</span>
+    <nav>
+      <a href="/">Overview & activity</a>
+      <a href="/#alerts">Alert evidence</a>
+    </nav>
+    <div class="aside-bottom">Read-only · Audit metadata · Local dashboard</div>
+  </aside>
+  <main>
+    {% block content %}{% endblock %}
+    <footer>Phase 2 records metadata and policy matches; it does not block activity or prove intent.</footer>
+  </main>
+</body>
+</html>

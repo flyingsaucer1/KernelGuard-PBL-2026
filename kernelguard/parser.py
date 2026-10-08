@@ -1,4 +1,4 @@
-"""Parse selected Linux Audit metadata; never retain PROCTITLE or file contents."""
+
 import posixpath
 import re
 from collections import defaultdict
@@ -70,18 +70,6 @@ def _parse_audit(text, host, origin):
                     resource=row.get("addr"), outcome="failure", origin=origin,
                     _audit=os_details(row, stamp, serial))
         syscall = next((r for r in rows if r.get("type") == "SYSCALL"), None)
-        if (syscall and syscall.get("key") == "kernelguard_privileged"
-                and syscall.get("arch") == "c000003e"
-                and syscall.get("syscall") in ("59", "322")):
-            actor = known_id(syscall.get("auid"))
-            yield dict(source_id=digest(f"{host}:{origin}:{stamp}:{serial}:exec"),
-                host=host, timestamp=int(float(stamp)), kind="privileged_exec",
-                account=f"uid:{actor}" if actor else "unknown", uid=actor,
-                effective_uid=known_id(syscall.get("euid")),
-                session=known_id(syscall.get("ses")), pid=syscall.get("pid"),
-                executable=syscall.get("exe"), resource=None,
-                outcome="success" if syscall.get("success") == "yes" else "failure",
-                origin=origin, _audit=os_details(syscall, stamp, serial))
         if not syscall or syscall.get("key") != "kernelguard_protected":
             continue
         cwd = next((r.get("cwd") for r in rows if r.get("type") == "CWD"), "/")

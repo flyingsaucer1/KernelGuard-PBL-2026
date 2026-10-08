@@ -11,10 +11,11 @@ from pathlib import PurePosixPath
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import (Column, ForeignKey, Index, Integer, MetaData, String,
-                        Table, Text, create_engine, event, select)
+                        Table, Text, create_engine, select)
+from sqlalchemy.engine import make_url
 from .config import settings
 
-# START Mohd Ahmed Khan: define relational tables and database storage helpers.
+# START Mohd Ahmed Khan: define the relational schema and MySQL storage helpers.
 metadata = MetaData()
 events = Table("events", metadata,
     Column("id", Integer, primary_key=True),
@@ -69,36 +70,18 @@ alert_policies = Table("alert_policies", metadata,
     Column("alert_id", ForeignKey("alerts.id"), primary_key=True),
     Column("policy_id", ForeignKey("rule_policies.id"), nullable=False),
     Index("ix_alert_policy", "policy_id"))
-administrators = Table("administrators", metadata,
-    Column("id", Integer, primary_key=True),
-    Column("username", String(64), nullable=False, unique=True),
-    Column("password_hash", String(256), nullable=False))
-alert_reviews = Table("alert_reviews", metadata,
-    Column("id", Integer, primary_key=True),
-    Column("alert_id", ForeignKey("alerts.id"), nullable=False),
-    Column("administrator_id", ForeignKey("administrators.id"), nullable=False),
-    Column("action", String(16), nullable=False),
-    Column("note", String(1000), nullable=False),
-    Column("timestamp", Integer, nullable=False),
-    Index("ix_review_alert_id", "alert_id", "id"))
-
 # Preserve case-sensitive Linux account identity and transactional foreign keys
 # regardless of the MySQL server's default collation/storage engine.
-from .inventory import schema as inventory_schema
-
 for table in metadata.tables.values():
     table.dialect_options["mysql"]["engine"] = "InnoDB"
     table.dialect_options["mysql"]["charset"] = "utf8mb4"
     table.dialect_options["mysql"]["collate"] = "utf8mb4_bin"
 
 def database(url):
-    engine = create_engine(url, pool_pre_ping=True)
-    if engine.dialect.name == "sqlite":
-        @event.listens_for(engine, "connect")
-        def configure(dbapi_connection, _):
-            dbapi_connection.execute("PRAGMA foreign_keys=ON")
-            dbapi_connection.execute("PRAGMA busy_timeout=10000")
-    return engine
+    parsed = make_url(url)
+    if parsed.drivername != "mysql+pymysql" or not parsed.database:
+        raise ValueError("Phase 2 requires a MySQL URL using mysql+pymysql")
+    return create_engine(parsed, pool_pre_ping=True)
 
 
 def digest(value):
@@ -138,13 +121,15 @@ def add_alert(conn, rule, record, evidence, score, reason, key, policy_id):
         reason=reason)).inserted_primary_key[0]
     conn.execute(alert_events.insert(), [dict(alert_id=aid, event_id=eid) for eid in evidence])
     conn.execute(alert_policies.insert().values(alert_id=aid, policy_id=policy_id))
-# END Mohd Ahmed Khan: schema, checkpoints, policies, and alert evidence storage.
+# END Mohd Ahmed Khan: schema, connection, checkpoints, and alert persistence.
 
 
 def ingest(conn, record, cfg):
     """One writer; caller commits events, alerts and cursor in one transaction."""
-    # START Mohd Ahmed Khan: deduplicate and store normalized event evidence.
+    # START Mohd Ahmed Khan: validate, deduplicate, and store event evidence.
     record = dict(record)
+    if record.get("kind") not in ("login_failure", "file_access"):
+        raise ValueError("Phase 2 accepts login_failure and file_access events only")
     audit = record.pop("_audit", None)
     boot_id = record.pop("_boot", None)
     existing = conn.execute(select(events.c.id).where(events.c.source_id == record["source_id"])).scalar()
@@ -162,7 +147,7 @@ def ingest(conn, record, cfg):
         conn.execute(audit_details.insert().values(event_id=eid, **audit))
     # END Mohd Ahmed Khan: event and audit-detail persistence.
 
-    # START Ankit: evaluate login, after-hours, and additional activity rules.
+    # START Ankit: apply failed-login and after-hours protected-file rules.
     if record["kind"] == "login_failure":
         # Evaluate windows ending at this event AND later stored events: late arrivals
         # must not hide a threshold crossing. Greedily group disjoint alert episodes.
@@ -202,7 +187,5 @@ def ingest(conn, record, cfg):
             add_alert(conn, "After-hours protected access", record, [eid], 70,
                 f"Successful access to {path} outside {start:02}:00–{end:02}:00 "
                 f"({cfg['timezone']}) on {record['host']}.", "file:" + record["source_id"], policy)
-    from .activity_rules import evaluate
-    evaluate(conn, record, eid, cfg, boot_id)
-    # END Ankit: detection rules and their alert evidence.
+    # END Ankit: Phase 2 detection rules and their alert evidence.
     return True

@@ -15,10 +15,6 @@ class ProjectSettings(BaseModel):
     allowed_end_hour: int = Field(default=18, ge=0, le=23)
     login_threshold: int = Field(default=5, ge=2)
     login_window_seconds: int = Field(default=300, ge=1)
-    bulk_file_threshold: int = Field(default=10, ge=2, le=1000)
-    bulk_window_seconds: int = Field(default=60, ge=1, le=3600)
-    privileged_executables: list[str] = Field(default_factory=lambda: [
-        "/usr/bin/passwd", "/usr/sbin/useradd", "/usr/sbin/usermod"])
 
     @model_validator(mode="after")
     def validate_policy(self):
@@ -29,10 +25,6 @@ class ProjectSettings(BaseModel):
         if self.allowed_start_hour == self.allowed_end_hour:
             raise ValueError("Allowed start and end hours must differ")
         self.protected_path = posixpath.normpath(self.protected_path)
-        if any(not path.startswith("/") for path in self.privileged_executables):
-            raise ValueError("privileged_executables must contain absolute paths")
-        self.privileged_executables = sorted(set(
-            posixpath.normpath(path) for path in self.privileged_executables))
         return self
 
 

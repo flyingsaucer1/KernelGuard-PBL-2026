@@ -1,9 +1,0 @@
-.venv/
-.venv-linux/
-__pycache__/
-.pytest_cache/
-data/
-.env
-.env.mysql
-tmp/
-*.pyc

@@ -1,1 +1,0 @@
-"""KernelGuard regression suite."""

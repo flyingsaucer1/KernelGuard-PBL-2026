@@ -1,1 +1,1 @@
-"""KernelGuard host activity monitoring and administrator review."""
+"""KernelGuard Phase 2: Linux Audit metadata, detection, and DBMS evidence."""
