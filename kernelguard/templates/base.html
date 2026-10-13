@@ -3,22 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>KernelGuard · Phase 2</title>
+  <title>KernelGuard · Activity</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  {% block head %}{% endblock %}
 </head>
 <body>
-  <aside>
-    <a class="brand" href="/">◈ KernelGuard</a>
-    <span class="phase">PHASE 2 · OS + DBMS</span>
-    <nav>
-      <a href="/">Overview & activity</a>
-      <a href="/#alerts">Alert evidence</a>
-    </nav>
-    <div class="aside-bottom">Read-only · Audit metadata · Local dashboard</div>
-  </aside>
-  <main>
-    {% block content %}{% endblock %}
-    <footer>Phase 2 records metadata and policy matches; it does not block activity or prove intent.</footer>
-  </main>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="/"><span class="brand-mark">◆</span><span>KernelGuard</span></a>
+      <nav aria-label="Main navigation">
+        <a href="/">Overview</a>
+        <a href="/#activity">Activity</a>
+        <a href="/#alerts">Alerts</a>
+      </nav>
+      <div class="sidebar-foot"><span class="live-dot"></span>Kali monitor</div>
+    </aside>
+    <main class="content">{% block content %}{% endblock %}</main>
+  </div>
 </body>
 </html>

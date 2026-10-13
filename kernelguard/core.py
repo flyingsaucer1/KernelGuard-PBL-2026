@@ -5,10 +5,7 @@ threshold must not change the explanation for yesterday's alert.
 """
 import hashlib
 import json
-import posixpath
 from datetime import datetime, timezone
-from pathlib import PurePosixPath
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import (Column, ForeignKey, Index, Integer, MetaData, String,
                         Table, Text, create_engine, select)
@@ -128,8 +125,8 @@ def ingest(conn, record, cfg):
     """One writer; caller commits events, alerts and cursor in one transaction."""
     # START Mohd Ahmed Khan: validate, deduplicate, and store event evidence.
     record = dict(record)
-    if record.get("kind") not in ("login_failure", "file_access"):
-        raise ValueError("Phase 2 accepts login_failure and file_access events only")
+    if record.get("kind") not in ("login_failure", "file_access", "process_exec"):
+        raise ValueError("Phase 2 accepts login_failure, file_access and process_exec events only")
     audit = record.pop("_audit", None)
     boot_id = record.pop("_boot", None)
     existing = conn.execute(select(events.c.id).where(events.c.source_id == record["source_id"])).scalar()
@@ -147,45 +144,6 @@ def ingest(conn, record, cfg):
         conn.execute(audit_details.insert().values(event_id=eid, **audit))
     # END Mohd Ahmed Khan: event and audit-detail persistence.
 
-    # START Ankit: apply failed-login and after-hours protected-file rules.
-    if record["kind"] == "login_failure":
-        # Evaluate windows ending at this event AND later stored events: late arrivals
-        # must not hide a threshold crossing. Greedily group disjoint alert episodes.
-        group = (events.c.kind == "login_failure", events.c.host == record["host"],
-                 events.c.account == record["account"], events.c.origin == record["origin"])
-        candidates = conn.execute(select(events).where(*group,
-            events.c.timestamp >= record["timestamp"],
-            events.c.timestamp <= record["timestamp"] + cfg["login_window_seconds"])
-            .order_by(events.c.timestamp, events.c.id)).mappings().all()
-        for end in candidates:
-            window = conn.execute(select(events.c.id).where(*group,
-                events.c.timestamp >= end["timestamp"] - cfg["login_window_seconds"],
-                events.c.timestamp <= end["timestamp"])
-                .order_by(events.c.timestamp, events.c.id)).scalars().all()
-            used = set(conn.execute(select(alert_events.c.event_id).join(alerts).where(
-                alerts.c.rule == "Repeated login failures",
-                alert_events.c.event_id.in_(window))).scalars())
-            fresh = [i for i in window if i not in used]
-            if len(fresh) >= cfg["login_threshold"]:
-                policy = save_policy(conn, "login_failures", dict(
-                    threshold=cfg["login_threshold"], window_seconds=cfg["login_window_seconds"],
-                    severity=60, evidence_grouping="disjoint episodes"))
-                add_alert(conn, "Repeated login failures", end, fresh, 60,
-                    f"{len(fresh)} failed authentications for {record['account']} within "
-                    f"{cfg['login_window_seconds']} seconds on {record['host']}.",
-                    "login:" + ":".join(map(str, fresh)), policy)
-    if record["kind"] == "file_access" and record["outcome"] == "success":
-        path = PurePosixPath(posixpath.normpath(record["resource"] or "/"))
-        root = PurePosixPath(cfg["protected_path"])
-        hour = datetime.fromtimestamp(record["timestamp"], ZoneInfo(cfg["timezone"])).hour
-        start, end = cfg["allowed_start_hour"], cfg["allowed_end_hour"]
-        allowed = start <= hour < end if start < end else hour >= start or hour < end
-        if (path == root or root in path.parents) and not allowed:
-            policy = save_policy(conn, "protected_access", dict(
-                protected_path=str(root), timezone=cfg["timezone"],
-                allowed_start_hour=start, allowed_end_hour=end, severity=70))
-            add_alert(conn, "After-hours protected access", record, [eid], 70,
-                f"Successful access to {path} outside {start:02}:00–{end:02}:00 "
-                f"({cfg['timezone']}) on {record['host']}.", "file:" + record["source_id"], policy)
-    # END Ankit: Phase 2 detection rules and their alert evidence.
+    from .rules import evaluate_rules
+    evaluate_rules(conn, record, eid, cfg)
     return True

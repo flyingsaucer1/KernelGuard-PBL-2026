@@ -34,7 +34,7 @@ from kernelguard.parser import parse_audit
 
 ROOT = Path(__file__).resolve().parent
 PHASE2_NAMES = set(metadata.tables)
-PHASE2_KINDS = ("login_failure", "file_access")
+PHASE2_KINDS = ("login_failure", "file_access", "process_exec")
 PHASE2_RULES = ("Repeated login failures", "After-hours protected access")
 
 def check_schema(engine, *, create=False):
@@ -124,28 +124,44 @@ def create_phase2_app(engine, cfg):
     def overview():
         kind = request.args.get("kind", "")
         account = request.args.get("account", "").strip()[:128]
+        resource = request.args.get("resource", "").strip()[:256]
         query = select(events).order_by(
             events.c.timestamp.desc(), events.c.id.desc()).limit(100)
         if kind in PHASE2_KINDS:
             query = query.where(events.c.kind == kind)
         if account:
             query = query.where(events.c.account == account)
+        if resource:
+            query = query.where(events.c.resource.contains(resource))
         with engine.connect() as conn:
             rows = conn.execute(query).mappings().all()
+            recent_files = conn.execute(select(events).where(
+                events.c.kind == "file_access",
+                ~events.c.resource.startswith("/home/kali/.codex/"),
+                ~events.c.resource.startswith("/home/kali/.cache/"),
+            ).order_by(events.c.timestamp.desc(), events.c.id.desc()).limit(8)).mappings().all()
+            recent_processes = conn.execute(select(events).where(
+                events.c.kind == "process_exec"
+            ).order_by(events.c.timestamp.desc(), events.c.id.desc()).limit(8)).mappings().all()
             alert_rows = conn.execute(select(alerts).order_by(
                 alerts.c.timestamp.desc()).limit(30)).mappings().all()
             total = conn.execute(select(func.count()).select_from(events)).scalar()
             alert_count = conn.execute(select(func.count()).select_from(alerts)).scalar()
-            demo_count = conn.execute(select(func.count()).select_from(events).where(
-                events.c.origin == "demo")).scalar()
+            file_count = conn.execute(select(func.count()).select_from(events).where(
+                events.c.kind == "file_access")).scalar()
+            process_count = conn.execute(select(func.count()).select_from(events).where(
+                events.c.kind == "process_exec")).scalar()
             health = conn.execute(select(checkpoints.c.value).where(
                 checkpoints.c.name == "phase2_collector_health")).scalar()
         last_poll = json.loads(health).get("last_poll", 0) if health else 0
         healthy = 0 <= time.time() - last_poll < 30
         return render_template(
-            "overview.html", rows=rows, alert_rows=alert_rows, total=total,
-            alert_count=alert_count, demo_count=demo_count, healthy=healthy,
-            backend=engine.dialect.name, cfg=cfg, kind=kind, account=account)
+            "overview.html", rows=rows, recent_files=recent_files,
+            recent_processes=recent_processes, alert_rows=alert_rows,
+            total=total, file_count=file_count, process_count=process_count,
+            alert_count=alert_count, healthy=healthy,
+            backend=engine.dialect.name, cfg=cfg, kind=kind, account=account,
+            resource=resource)
 
     @app.get("/alerts/<int:alert_id>")
     def detail(alert_id):

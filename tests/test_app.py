@@ -37,6 +37,21 @@ def test_only_mysql_is_accepted():
         engine.dispose()
 
 
+def test_user_process_and_file_audit_records():
+    raw = '''type=SYSCALL msg=audit(1791813600.100:501): arch=c000003e syscall=59 success=yes pid=321 auid=1000 uid=1000 euid=1000 ses=3 exe="/usr/bin/cat" key="kernelguard_process_exec"
+type=SYSCALL msg=audit(1791813601.100:502): arch=c000003e syscall=257 success=yes pid=321 auid=1000 uid=1000 euid=1000 ses=3 exe="/usr/bin/cat" key="kernelguard_file_access"
+type=CWD msg=audit(1791813601.100:502): cwd="/home/kali"
+type=PATH msg=audit(1791813601.100:502): item=0 name="notes.txt" inode=42 dev=08:01 nametype=NORMAL
+'''
+    records = list(parse_audit(raw, "lab", "live", boot_id="boot-1"))
+    assert [(row["kind"], row["resource"]) for row in records] == [
+        ("process_exec", "/usr/bin/cat"),
+        ("file_access", "/home/kali/notes.txt"),
+    ]
+    assert all(row["origin"] == "live" for row in records)
+    assert len({row["source_id"] for row in records}) == 2
+
+
 def test_later_phase_events_are_rejected():
     record = {"kind": "privileged_exec"}
     with pytest.raises(ValueError, match="Phase 2 accepts"):

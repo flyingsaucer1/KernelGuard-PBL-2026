@@ -1,89 +1,109 @@
 {% extends "base.html" %}
+{% block head %}
+<script defer src="{{ url_for('static', filename='refresh.js') }}"></script>
+{% endblock %}
 {% block content %}
-<header>
+<header class="page-header">
   <div>
-    <div class="eyebrow">HOST SECURITY / PHASE 2</div>
-    <h1>Audit events and evidence</h1>
-    <p>Failed authentication and protected-file activity stored in a relational database.</p>
+    <div class="eyebrow">LIVE SECURITY ACTIVITY</div>
+    <h1>Activity overview</h1>
+    <p>Files, program launches, and alerts from this Kali machine.</p>
   </div>
-  <a class="button" href="/">Refresh view ↻</a>
+  <div class="header-actions">
+    <span class="refresh-note">Updates every 15 seconds</span>
+    <a class="button" href="{{ request.full_path }}">Refresh now ↻</a>
+  </div>
 </header>
 
-<div class="notice">
-  {{ backend|upper }} storage · {{ demo_count }} synthetic event(s).
-  Synthetic input does not prove live Linux collection.
-</div>
+<section class="stats" aria-label="Activity summary">
+  <article><span>File events</span><strong>{{ file_count }}</strong><small>Recorded file access</small></article>
+  <article><span>Process launches</span><strong>{{ process_count }}</strong><small>Programs started</small></article>
+  <article><span>Alerts</span><strong>{{ alert_count }}</strong><small>Rule matches</small></article>
+  <article><span>Collector</span><strong class="status {{ 'online' if healthy else 'offline' }}">{{ 'Active' if healthy else 'Offline' }}</strong><small>{{ 'Receiving audit events' if healthy else 'Check collector service' }}</small></article>
+</section>
 
-<section class="stats">
-  <article><span>Stored events</span><strong>{{ total }}</strong><small>Audit activity</small></article>
-  <article><span>Security alerts</span><strong>{{ alert_count }}</strong><small>Two Phase 2 rules</small></article>
-  <article>
-    <span>Collector</span>
-    <strong class="status">{{ 'Active' if healthy else 'Not live' }}</strong>
-    <small>{{ 'Recent successful Linux poll' if healthy else 'No recent Linux poll' }}</small>
+<section class="feed-grid" aria-label="Recent activity">
+  <article class="panel">
+    <div class="panel-heading"><div><div class="eyebrow">FILES</div><h2>Recent file activity</h2></div><a href="/?kind=file_access#activity">View all →</a></div>
+    <div class="activity-list">
+      {% for row in recent_files %}
+      <div class="activity-item">
+        <span class="activity-icon file-icon">F</span>
+        <div><strong>{{ row.resource or 'Unknown file' }}</strong><small>{{ row.account }} · {{ row.timestamp|utc }}</small></div>
+      </div>
+      {% else %}
+      <p class="empty">No file activity recorded yet.</p>
+      {% endfor %}
+    </div>
+  </article>
+  <article class="panel">
+    <div class="panel-heading"><div><div class="eyebrow">PROCESSES</div><h2>Programs launched</h2></div><a href="/?kind=process_exec#activity">View all →</a></div>
+    <div class="activity-list">
+      {% for row in recent_processes %}
+      <div class="activity-item">
+        <span class="activity-icon process-icon">P</span>
+        <div><strong>{{ row.resource or 'Unknown program' }}</strong><small>{{ row.account }} · {{ row.timestamp|utc }}</small></div>
+      </div>
+      {% else %}
+      <p class="empty">No process launches recorded yet.</p>
+      {% endfor %}
+    </div>
   </article>
 </section>
 
-<section id="alerts">
-  <div class="section-title"><h2>Evidence-linked alerts</h2></div>
-  <div class="alert-grid">
-    {% for alert in alert_rows %}
-      <a class="alert-card" href="{{ url_for('detail', alert_id=alert.id) }}">
-        <div class="alert-top"><span class="badge">{{ alert.score }}/100 severity</span></div>
-        <h3>{{ alert.rule }}</h3>
-        <p>{{ alert.reason }}</p>
-        <small>{{ alert.timestamp|utc }}</small>
-        <div class="evidence-link">Inspect evidence →</div>
-      </a>
-    {% else %}
-      <div class="empty">No Phase 2 alerts yet.</div>
-    {% endfor %}
-  </div>
-</section>
-
-<section>
-  <div class="section-title">
-    <h2>Activity timeline</h2>
-    <span>Latest 100 matching events · UTC</span>
-  </div>
-  <form method="get">
-    <label>Event type
+<section class="section-block" id="activity">
+  <div class="section-title"><div><div class="eyebrow">SEARCH</div><h2>Activity timeline</h2></div><span>Latest 100 matching events · UTC</span></div>
+  <form method="get" action="/#activity" class="filter-form">
+    <label>Activity
       <select name="kind">
-        <option value="">All events</option>
-        <option value="login_failure" {% if kind == 'login_failure' %}selected{% endif %}>Login failure</option>
+        <option value="">All activity</option>
         <option value="file_access" {% if kind == 'file_access' %}selected{% endif %}>File access</option>
+        <option value="process_exec" {% if kind == 'process_exec' %}selected{% endif %}>Process launch</option>
+        <option value="login_failure" {% if kind == 'login_failure' %}selected{% endif %}>Failed login</option>
       </select>
     </label>
-    <label>Account (exact match)
-      <input name="account" value="{{ account }}" placeholder="e.g. testuser">
+    <label>File or program path
+      <input name="resource" value="{{ resource }}" placeholder="Search by name or path">
     </label>
-    <button>Apply filters</button>
-    <a href="/">Clear</a>
+    <label>Account
+      <input name="account" value="{{ account }}" placeholder="e.g. uid:1000">
+    </label>
+    <button type="submit">Search</button>
+    <a class="clear-link" href="/#activity">Clear</a>
   </form>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Time (UTC)</th><th>Account</th><th>Activity / resource</th><th>Outcome</th><th>Source</th></tr></thead>
+      <thead><tr><th>Time (UTC)</th><th>Activity</th><th>File or program</th><th>Account</th><th>Result</th></tr></thead>
       <tbody>
         {% for row in rows %}
-          <tr>
-            <td class="time">{{ row.timestamp|utc }}</td>
-            <td>{{ row.account }}<small>{{ row.host }}</small></td>
-            <td>{{ row.kind|replace('_', ' ') }}<small>{{ row.resource or '—' }}</small></td>
-            <td>{{ row.outcome }}</td>
-            <td>{{ row.origin }}</td>
-          </tr>
+        <tr>
+          <td class="time">{{ row.timestamp|utc }}</td>
+          <td><span class="kind-chip">{{ 'Process launch' if row.kind == 'process_exec' else 'File access' if row.kind == 'file_access' else 'Failed login' }}</span></td>
+          <td class="resource-cell">{{ row.resource or '—' }}</td>
+          <td>{{ row.account }}</td>
+          <td>{{ row.outcome }}</td>
+        </tr>
         {% else %}
-          <tr><td colspan="5">No matching events.</td></tr>
+        <tr><td colspan="5" class="empty">No matching activity. Try a different file name or clear the filters.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </section>
 
-<section class="policy">
-  <h2>Phase 2 policy</h2>
-  <p>Login failures: {{ cfg.login_threshold }} failures within {{ cfg.login_window_seconds }} seconds.</p>
-  <p>Protected access: successful access under {{ cfg.protected_path }} outside
-    {{ cfg.allowed_start_hour }}:00–{{ cfg.allowed_end_hour }}:00 ({{ cfg.timezone }}).</p>
+<section class="section-block" id="alerts">
+  <div class="section-title"><div><div class="eyebrow">DETECTIONS</div><h2>Alerts and evidence</h2></div><span>{{ alert_count }} total</span></div>
+  <div class="alert-grid">
+    {% for alert in alert_rows %}
+    <a class="alert-card" href="{{ url_for('detail', alert_id=alert.id) }}">
+      <div class="alert-top"><span class="badge">{{ alert.score }}/100 severity</span><span>{{ alert.timestamp|utc }}</span></div>
+      <h3>{{ alert.rule }}</h3>
+      <p>{{ alert.reason }}</p>
+      <span class="evidence-link">Inspect evidence →</span>
+    </a>
+    {% else %}
+    <div class="empty-card">No alerts recorded.</div>
+    {% endfor %}
+  </div>
 </section>
 {% endblock %}

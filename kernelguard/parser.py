@@ -50,6 +50,67 @@ def parse_audit(text, host, origin="live", boot_id=None):
         yield record
 
 
+def event_record(host, origin, stamp, serial, discriminator, kind, row,
+                 account, uid, resource, outcome, path=None):
+    """Build the shared audit envelope while retaining event-specific identity."""
+    return dict(source_id=digest(f"{host}:{origin}:{stamp}:{serial}:{discriminator}"),
+        host=host, timestamp=int(float(stamp)), kind=kind, account=account[:128],
+        uid=uid, effective_uid=known_id(row.get("euid")),
+        session=known_id(row.get("ses")) if kind != "login_failure" else None,
+        pid=row.get("pid"), executable=row.get("exe"), resource=resource,
+        outcome=outcome, origin=origin,
+        _audit=os_details(row, stamp, serial, path))
+
+
+def auth_records(rows, host, origin, stamp, serial):
+    for index, row in enumerate(rows):
+        if row.get("type") != "USER_AUTH" or row.get("res") != "failed":
+            continue
+        # USER_LOGIN repeats a PAM attempt; accepting it would inflate the count.
+        if posixpath.basename(row.get("exe", "")) not in (
+                "sshd", "sshd-session", "sshd-auth", "login"):
+            continue
+        yield event_record(host, origin, stamp, serial, f"auth:{index}",
+            "login_failure", row, row.get("acct") or "unknown", None,
+            row.get("addr"), "failure")
+
+
+def path_records(rows, cwd):
+    """Yield each audited target once, excluding parent-directory records."""
+    seen = set()
+    for row in rows:
+        if row.get("type") != "PATH" or row.get("nametype") == "PARENT":
+            continue
+        name = row.get("name")
+        if not name or name == "(null)":
+            continue
+        absolute = posixpath.normpath(posixpath.join(cwd or "/", name))
+        if absolute not in seen:
+            seen.add(absolute)
+            yield absolute, row
+
+
+def syscall_records(rows, host, origin, stamp, serial):
+    syscall = next((row for row in rows if row.get("type") == "SYSCALL"), None)
+    if syscall is None:
+        return
+    keys = set((syscall.get("key") or "").split(","))
+    observed_uid = syscall.get("auid")
+    uid = observed_uid if observed_uid not in (None, "4294967295", "-1", "unset") else syscall.get("uid")
+    account = f"uid:{uid}" if uid else "unknown"
+    outcome = "success" if syscall.get("success") == "yes" else "failure"
+    if "kernelguard_process_exec" in keys:
+        executable = syscall.get("exe")
+        yield event_record(host, origin, stamp, serial, "exec", "process_exec",
+            syscall, account, uid, executable, outcome)
+    if keys.isdisjoint(("kernelguard_protected", "kernelguard_file_access")):
+        return
+    cwd = next((row.get("cwd") for row in rows if row.get("type") == "CWD"), "/")
+    for name, path in path_records(rows, cwd):
+        yield event_record(host, origin, stamp, serial, f"file:{name}",
+            "file_access", syscall, account, uid, name, outcome, path)
+
+
 def _parse_audit(text, host, origin):
     groups = defaultdict(list)
     for line in text.splitlines():
@@ -57,39 +118,5 @@ def _parse_audit(text, host, origin):
         if match:
             groups[match.groups()].append(fields(line))
     for (stamp, serial), rows in sorted(groups.items(), key=lambda pair: (float(pair[0][0]), int(pair[0][1]))):
-        for index, row in enumerate(rows):
-            if (row.get("type") == "USER_AUTH" and row.get("res") == "failed"
-                    and posixpath.basename(row.get("exe", "")) in
-                    ("sshd", "sshd-session", "sshd-auth", "login")):
-                # USER_AUTH only: counting USER_LOGIN as well would double-count PAM attempts.
-                account = row.get("acct") or "unknown"
-                yield dict(source_id=digest(f"{host}:{origin}:{stamp}:{serial}:auth:{index}"),
-                    host=host, timestamp=int(float(stamp)), kind="login_failure",
-                    account=account[:128], uid=None, effective_uid=known_id(row.get("euid")),
-                    session=None, pid=row.get("pid"), executable=row.get("exe"),
-                    resource=row.get("addr"), outcome="failure", origin=origin,
-                    _audit=os_details(row, stamp, serial))
-        syscall = next((r for r in rows if r.get("type") == "SYSCALL"), None)
-        if not syscall or syscall.get("key") != "kernelguard_protected":
-            continue
-        cwd = next((r.get("cwd") for r in rows if r.get("type") == "CWD"), "/")
-        seen = set()
-        for row in rows:
-            if row.get("type") != "PATH" or row.get("nametype") == "PARENT":
-                continue
-            name = row.get("name")
-            if not name or name == "(null)":
-                continue
-            name = posixpath.normpath(posixpath.join(cwd or "/", name))
-            if name in seen:
-                continue
-            seen.add(name)
-            auid = syscall.get("auid")
-            uid = auid if auid not in (None, "4294967295", "-1", "unset") else syscall.get("uid")
-            yield dict(source_id=digest(f"{host}:{origin}:{stamp}:{serial}:file:{name}"),
-                host=host, timestamp=int(float(stamp)), kind="file_access",
-                account=f"uid:{uid}" if uid else "unknown", uid=uid,
-                effective_uid=known_id(syscall.get("euid")), session=known_id(syscall.get("ses")),
-                pid=syscall.get("pid"), executable=syscall.get("exe"),
-                resource=name, outcome="success" if syscall.get("success") == "yes" else "failure",
-                origin=origin, _audit=os_details(syscall, stamp, serial, row))
+        yield from auth_records(rows, host, origin, stamp, serial)
+        yield from syscall_records(rows, host, origin, stamp, serial)
